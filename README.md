@@ -47,8 +47,8 @@
 - [x] rewrite all c code into file.c and file.h respectively
 - [x] create/modify a better build system
 - [x] cache all unmodded files for faster compile time
-- [ ] add interrupts
 - [X] test on real hardware
+- [ ] add interrupts
 - [ ] organize functions into appropriate files
 - [ ] add full ASCII compatability
 - [ ] convert project to camelCase
