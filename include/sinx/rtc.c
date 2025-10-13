@@ -1,6 +1,7 @@
 #include "rtc.h"
 
 #include <iobyte.h>
+#define HOUR_12_FLAG 0x02
 
 char *longtostr(long zahl)
 {
@@ -20,7 +21,17 @@ char *longtostr(long zahl)
     }
     return &text[loc]; // Start from where loc left off
 }
-
+unsigned char isBinary() {
+    unsigned char statusB = readCmos(0x0B);
+    return statusB & 0x04;
+}
+unsigned char bcdToBin(unsigned char val) {
+    return ((val >> 4) * 10) + (val & 0x0F);
+}
+unsigned char readCmosStable(unsigned char addr) {
+    while (readCmos(0x0A) & 0x80); // wait for update-in-progress flag to clear
+    return readCmos(addr);
+}
 unsigned char readCmos(unsigned char address)
 {
     unsigned char data;
@@ -29,16 +40,50 @@ unsigned char readCmos(unsigned char address)
     return data;
 }
 
-void readTime(struct Time *getTime)
+void readTime(struct Time *t)
 {
-    getTime->sec = readCmos(SecIndex);
-    getTime->min = readCmos(MinIndex);
-    getTime->hr = readCmos(HourIndex);
+    unsigned char statusB = readCmos(0x0B);
+    int isBinary = statusB & 0x04;
+    int is24Hour = statusB & 0x02;
+
+    unsigned char hr = readCmosStable(HourIndex);
+    unsigned char min = readCmosStable(MinIndex);
+    unsigned char sec = readCmosStable(SecIndex);
+
+    // 12h → 24h
+    if (!is24Hour) {
+        int pm = hr & 0x80;
+        hr &= 0x7F;
+        if (pm) hr += 12;
+        if (hr == 12 && !pm) hr = 0;
+    }
+
+    if (!isBinary) {
+        hr  = bcdToBin(hr);
+        min = bcdToBin(min);
+        sec = bcdToBin(sec);
+    }
+
+    t->hr  = hr;
+    t->min = min;
+    t->sec = sec;
 }
 
-void readDate(struct Date *getDate)
+
+void readDate(struct Date *d)
 {
-    getDate->year = readCmos(YearIndex);
-    getDate->month = readCmos(MonthIndex);
-    getDate->day = readCmos(DayIndex);
+    int binary = isBinary();
+    unsigned char day   = readCmosStable(DayIndex);
+    unsigned char month = readCmosStable(MonthIndex);
+    unsigned char year  = readCmosStable(YearIndex);
+
+    if (!binary) {
+        day   = bcdToBin(day);
+        month = bcdToBin(month);
+        year  = bcdToBin(year);
+    }
+
+    d->day   = day;
+    d->month = month;
+    d->year  = 2000 + year; // CMOS returns 0–99
 }
